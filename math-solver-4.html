@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Math Solver</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #1e1e2e;
+      --accent: #7c6aff;
+      --accent2: #00e5c0;
+      --text: #e8e8f0;
+      --muted: #5a5a78;
+      --error: #ff5555;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .logo-dot {
+      width: 8px; height: 8px;
+      background: var(--accent2);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    header h1 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* MAIN LAYOUT: horizontal */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* LEFT: cámara */
+    .cam-side {
+      position: relative;
+      flex: 1.1;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .cam-error {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--error);
+      font-size: 13px;
+      text-align: center;
+      padding: 20px;
+      line-height: 1.6;
+    }
+
+    canvas { display: none; }
+
+    /* Corner brackets */
+    .corner { position: absolute; width: 22px; height: 22px; border-color: var(--accent2); border-style: solid; opacity: 0.8; }
+    .corner.tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+    .corner.tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+    .scan-line {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent2), transparent);
+      opacity: 0; top: 50%;
+    }
+    .scan-line.scanning {
+      opacity: 0.6;
+      animation: scan 1.2s ease-in-out infinite;
+    }
+    @keyframes scan { 0%{top:8%} 100%{top:92%} }
+
+    /* Botón analizar sobre la cámara */
+    .btn-analizar {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 24px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px #7c6aff55;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-analizar:active { transform: translateX(-50%) scale(0.95); }
+    .btn-analizar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* RIGHT: respuestas */
+    .result-side {
+      width: 46%;
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .result-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .result-header span {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .btn-limpiar {
+      font-size: 10px;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+
+    .result-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text);
+    }
+
+    .placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 10px;
+      color: var(--muted);
+      text-align: center;
+      padding: 20px;
+    }
+
+    .placeholder-icon { font-size: 28px; opacity: 0.4; }
+    .placeholder p { font-size: 12px; line-height: 1.5; }
+
+    .loading-dots { display: flex; gap: 5px; justify-content: center; padding: 20px 0; }
+    .loading-dots span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+      animation: bounce 1s infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:0.5} 30%{transform:translateY(-7px);opacity:1} }
+
+    .error-msg { color: var(--error); font-size: 13px; }
+
+    strong { color: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-dot"></div>
+  <h1>Math Solver</h1>
+</header>
+
+<div class="main">
+  <!-- CÁMARA -->
+  <div class="cam-side">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <div class="scan-line" id="scanLine"></div>
+    <button class="btn-analizar" id="btnCapture">⚡ Analizar</button>
+  </div>
+
+  <!-- RESPUESTAS -->
+  <div class="result-side">
+    <div class="result-header">
+      <span>Respuesta</span>
+      <button class="btn-limpiar" id="btnClear">Limpiar</button>
+    </div>
+    <div class="result-body" id="resultBody">
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">📐</div>
+        <p>Apunta al problema y toca <strong>Analizar</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GEMINI_KEY = "AIzaSyAQ.Ab8RN6JuqCaZA3O2-dmNTRQJp_OxezEQu2GHO4siJVjaGCWU1w";
+  const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`;
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const btnCapture = document.getElementById('btnCapture');
+  const btnClear = document.getElementById('btnClear');
+  const resultBody = document.getElementById('resultBody');
+  const placeholder = document.getElementById('placeholder');
+  const scanLine = document.getElementById('scanLine');
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }, audio: false
+      });
+      video.srcObject = stream;
+    } catch {
+      document.querySelector('.cam-side').innerHTML =
+        '<div class="cam-error">⚠️ No se pudo acceder a la cámara.<br>Permite el acceso en Chrome.</div>';
+    }
+  }
+
+  startCamera();
+
+  function captureFrame() {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+  }
+
+  async function analyze() {
+    btnCapture.disabled = true;
+    scanLine.classList.add('scanning');
+    placeholder.style.display = 'none';
+    resultBody.innerHTML = '<div class="loading-dots"><span></span><span></span><span></span></div>';
+
+    let imageBase64;
+    try { imageBase64 = captureFrame(); }
+    catch { showError('No se pudo capturar imagen.'); return; }
+
+    try {
+      const res = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: "image/jpeg", data: imageBase64 } },
+              { text: `Eres un tutor de matemáticas. Analiza el problema en la imagen y:
+1. Identifica el problema
+2. Resuelve paso a paso de forma clara y breve
+3. Marca la respuesta final claramente
+
+Si no hay problema matemático visible, dilo brevemente. Responde en español.` }
+            ]
+          }]
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Error de API');
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sin respuesta.';
+      scanLine.classList.remove('scanning');
+      resultBody.innerHTML = `<div style="white-space:pre-wrap">${formatText(text)}</div>`;
+    } catch (err) {
+      showError(err.message);
+    }
+
+    btnCapture.disabled = false;
+  }
+
+  function formatText(t) {
+    return t
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g,'<em>$1</em>')
+      .replace(/\n/g,'<br>');
+  }
+
+  function showError(msg) {
+    scanLine.classList.remove('scanning');
+    resultBody.innerHTML = `<div class="error-msg">⚠️ ${msg}</div>`;
+    btnCapture.disabled = false;
+  }
+
+  btnCapture.addEventListener('click', analyze);
+  btnClear.addEventListener('click', () => {
+    resultBody.innerHTML = '';
+    const p = document.createElement('div');
+    p.className = 'placeholder'; p.id = 'placeholder';
+    p.innerHTML = '<div class="placeholder-icon">📐</div><p>Apunta al problema y toca <strong>Analizar</strong></p>';
+    resultBody.appendChild(p);
+    scanLine.classList.remove('scanning');
+  });
+</script>
+</body>
+</html>
